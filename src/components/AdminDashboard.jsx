@@ -1,6 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Mail, ShieldX, Terminal, RefreshCw, ExternalLink, Users, Activity, Eye, Play, Copy, Check, AlertTriangle } from 'lucide-react';
+import {
+  ShieldCheck,
+  Mail,
+  ShieldX,
+  Terminal,
+  RefreshCw,
+  ExternalLink,
+  Users,
+  Activity,
+  Eye,
+  Play,
+  Copy,
+  Check,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Clock
+} from 'lucide-react';
 import { API_BASE } from '../config';
+
+// Helper untuk badge status
+const StatusBadge = ({ status }) => {
+  const styles = {
+    DISPATCHED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    SUBMITTED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    FAILED: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
+    PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+  };
+  const icons = {
+    DISPATCHED: <CheckCircle className="w-3 h-3 mr-1" />,
+    SUBMITTED: <Clock className="w-3 h-3 mr-1" />,
+    FAILED: <XCircle className="w-3 h-3 mr-1" />,
+    PENDING: <AlertTriangle className="w-3 h-3 mr-1" />
+  };
+  const label = status || 'PENDING';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono border ${styles[label] || styles.PENDING}`}>
+      {icons[label] || icons.PENDING}
+      {label}
+    </span>
+  );
+};
 
 export default function AdminDashboard() {
   const [reports, setReports] = useState([]);
@@ -8,7 +48,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [dispatchedMailLog, setDispatchedMailLog] = useState(null);
   const [dispatchedChannels, setDispatchedChannels] = useState(null);
   const [copiedLink, setCopiedLink] = useState(null);
 
@@ -20,15 +59,15 @@ export default function AdminDashboard() {
       const data = await res.json();
       setReports(data);
       if (data.length > 0) {
-        // Maintain selection if it's still in the list, otherwise select first item
-        const isStillPending = selectedReport && data.some(r => r.id === selectedReport.id);
-        if (isStillPending) {
+        const stillExists = selectedReport && data.some(r => r.id === selectedReport.id);
+        if (stillExists) {
           setSelectedReport(data.find(r => r.id === selectedReport.id));
         } else {
           setSelectedReport(data[0]);
         }
       } else {
         setSelectedReport(null);
+        setDispatchedChannels(null);
       }
     } catch (err) {
       console.error('Failed to load pending reports', err);
@@ -39,9 +78,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchPending();
+    // eslint-disable-next-line
   }, []);
 
-  // Trigger Janitor checking manually
+  // Trigger Janitor
   const handleRunJanitor = async () => {
     setNotification({ type: 'info', message: 'Running Janitor checks...' });
     try {
@@ -53,39 +93,40 @@ export default function AdminDashboard() {
       } else {
         setNotification({ type: 'error', message: data.message });
       }
-    } catch (err) {
+    } catch {
       setNotification({ type: 'error', message: 'Failed to run Janitor checks.' });
     }
   };
 
-  // Approve report (takedown request)
+  // Approve
   const handleApprove = async (id) => {
     setActionLoading(true);
     setNotification(null);
-    setDispatchedMailLog(null);
     setDispatchedChannels(null);
     try {
       const res = await fetch(`${API_BASE}/api/reports/${id}/approve`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setNotification({ type: 'success', message: data.message });
-        setDispatchedChannels(data.dispatched_channels);
+        if (data.dispatched_channels) {
+          setDispatchedChannels(data.dispatched_channels);
+        }
         fetchPending();
       } else {
         setNotification({ type: 'error', message: data.message });
       }
-    } catch (err) {
+    } catch {
       setNotification({ type: 'error', message: 'Network error during approval.' });
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Reject report
+  // Reject
   const handleReject = async (id) => {
     setActionLoading(true);
     setNotification(null);
-    setDispatchedMailLog(null);
+    setDispatchedChannels(null);
     try {
       const res = await fetch(`${API_BASE}/api/reports/${id}/reject`, { method: 'POST' });
       const data = await res.json();
@@ -95,36 +136,27 @@ export default function AdminDashboard() {
       } else {
         setNotification({ type: 'error', message: data.message });
       }
-    } catch (err) {
+    } catch {
       setNotification({ type: 'error', message: 'Network error during rejection.' });
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Copy to clipboard helper
+  // Copy
   const handleCopy = (text, idx) => {
     navigator.clipboard.writeText(text);
     setCopiedLink(idx);
     setTimeout(() => setCopiedLink(null), 1500);
   };
 
-  // Group outgoing links helper
+  // Group outgoing links
   const getGroupedLinks = (links) => {
-    const groups = {
-      whatsapp: [],
-      telegram: [],
-      google_form: [],
-      apk: [],
-      other: []
-    };
+    const groups = { whatsapp: [], telegram: [], google_form: [], apk: [], other: [] };
     if (Array.isArray(links)) {
       links.forEach(link => {
-        if (groups[link.type]) {
-          groups[link.type].push(link);
-        } else {
-          groups.other.push(link);
-        }
+        if (groups[link.type]) groups[link.type].push(link);
+        else groups.other.push(link);
       });
     }
     return groups;
@@ -132,36 +164,77 @@ export default function AdminDashboard() {
 
   const groupedLinks = selectedReport ? getGroupedLinks(selectedReport.outgoing_links) : null;
 
+  // Channel cards configuration
+  const channelConfigs = [
+    {
+      key: 'registrar_abuse',
+      icon: '📧',
+      label: 'Registrar Abuse Email',
+      targetLabel: 'Target',
+      targetKey: 'target',
+      actionLabel: 'Action',
+      actionKey: 'subject'
+    },
+    {
+      key: 'google_safe_browsing',
+      icon: '🔴',
+      label: 'Google Safe Browsing',
+      targetLabel: 'Endpoint',
+      targetKey: 'endpoint',
+      actionLabel: 'Action',
+      actionKey: 'action'
+    },
+    {
+      key: 'microsoft_smartscreen',
+      icon: '🪟',
+      label: 'MS SmartScreen',
+      targetLabel: 'Endpoint',
+      targetKey: 'endpoint',
+      actionLabel: 'Action',
+      actionKey: 'action'
+    },
+    {
+      key: 'mcafee_webadvisor',
+      icon: '🔒',
+      label: 'McAfee WebAdvisor',
+      targetLabel: 'Endpoint',
+      targetKey: 'endpoint',
+      actionLabel: 'Action',
+      actionKey: 'action'
+    },
+    {
+      key: 'nordvpn_cybersec',
+      icon: '🌐',
+      label: 'NordVPN CyberSec',
+      targetLabel: 'Endpoint',
+      targetKey: 'endpoint',
+      actionLabel: 'Action',
+      actionKey: 'action'
+    }
+  ];
+
   return (
     <div className="admin-dashboard-container">
-      {/* Top action details bar */}
+      {/* Top Bar */}
       <div className="admin-top-bar">
         <div className="admin-top-title">
           <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
           <span>Threat Triage & Review Center</span>
         </div>
         <div className="admin-top-actions">
-          <button 
-            onClick={handleRunJanitor}
-            className="admin-top-btn"
-          >
+          <button onClick={handleRunJanitor} className="admin-top-btn">
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Trigger Janitor Takedown</span>
           </button>
-          <button 
-            onClick={fetchPending}
-            className="admin-refresh-btn"
-            title="Refresh Queue"
-          >
+          <button onClick={fetchPending} className="admin-refresh-btn" title="Refresh Queue">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Main split work interface */}
+      {/* Main Workspace */}
       <div className="admin-workspace">
-        
-        {/* Left Column: Priority queue */}
+        {/* Left: Queue */}
         <div className="sidebar-queue-pane">
           <div className="sidebar-queue-header">
             <span className="queue-header-label">Pending Cases ({reports.length})</span>
@@ -185,7 +258,7 @@ export default function AdminDashboard() {
                   key={report.id}
                   onClick={() => {
                     setSelectedReport(report);
-                    setDispatchedMailLog(null);
+                    setDispatchedChannels(null);
                   }}
                   className={`queue-item ${selectedReport?.id === report.id ? 'active' : ''}`}
                 >
@@ -208,7 +281,7 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Middle Column: Visual Evidence & Technical specifications */}
+        {/* Middle: Forensics */}
         <div className="middle-forensics-pane">
           {selectedReport ? (
             <>
@@ -239,15 +312,14 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Mock browser frame displaying Mobile screenshot */}
               <div className="screenshot-container">
                 <h3 className="specs-title">Forensic Screenshot (Mobile Viewport)</h3>
                 <div className="browser-mockup-frame">
                   <div className="browser-header-row">
                     <div className="browser-control-dots">
-                      <div className="browser-dot dot-red"></div>
-                      <div className="browser-dot dot-yellow"></div>
-                      <div className="browser-dot dot-green"></div>
+                      <div className="browser-dot dot-red" />
+                      <div className="browser-dot dot-yellow" />
+                      <div className="browser-dot dot-green" />
                     </div>
                     <div className="browser-url-input select-all">
                       {selectedReport.reported_url}
@@ -255,9 +327,9 @@ export default function AdminDashboard() {
                   </div>
                   <div className="browser-body-content">
                     {selectedReport.screenshot_url ? (
-                      <img 
-                        src={`${API_BASE}${selectedReport.screenshot_url}`} 
-                        alt="Phishing mobile preview screenshot" 
+                      <img
+                        src={`${API_BASE}${selectedReport.screenshot_url}`}
+                        alt="Phishing mobile preview screenshot"
                         className="forensic-screenshot-img"
                       />
                     ) : (
@@ -281,7 +353,7 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Right Column: Outgoing redirection links grouped by category */}
+        {/* Right: Outgoing Links */}
         <div className="right-links-pane">
           {selectedReport && groupedLinks ? (
             <>
@@ -292,125 +364,53 @@ export default function AdminDashboard() {
                 </h3>
               </div>
 
-              {/* WhatsApp Cards */}
-              <div className="platform-card whatsapp">
-                <div className="platform-card-header">WhatsApp Redirection ({groupedLinks.whatsapp.length})</div>
-                {groupedLinks.whatsapp.length === 0 ? (
-                  <span className="platform-card-empty">No WhatsApp vectors detected.</span>
-                ) : (
-                  <div className="link-items-list">
-                    {groupedLinks.whatsapp.map((l, idx) => (
-                      <div key={idx} className="link-item-row">
-                        <span className="link-item-url" title={l.url}>{l.url}</span>
-                        <div className="link-item-actions">
-                          <button onClick={() => handleCopy(l.url, `wa-${idx}`)} className="link-action-btn" title="Copy URL">
-                            {copiedLink === `wa-${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                          <a href={l.url} target="_blank" rel="noreferrer" className="link-action-btn" title="Visit Link">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
+              {/* Render each platform group */}
+              {Object.entries({
+                whatsapp: { label: 'WhatsApp Redirection', icon: '💬' },
+                telegram: { label: 'Telegram channels', icon: '✈️' },
+                google_form: { label: 'Credential Forms', icon: '📝' },
+                apk: { label: 'APK Malware Targets', icon: '📲' },
+                other: { label: 'Other Redirects', icon: '🔗' }
+              }).map(([key, { label, icon }]) => (
+                <div key={key} className={`platform-card ${key}`}>
+                  <div className="platform-card-header">
+                    {icon} {label} ({groupedLinks[key].length})
                   </div>
-                )}
-              </div>
-
-              {/* Telegram Cards */}
-              <div className="platform-card telegram">
-                <div className="platform-card-header">Telegram channels ({groupedLinks.telegram.length})</div>
-                {groupedLinks.telegram.length === 0 ? (
-                  <span className="platform-card-empty">No Telegram vectors detected.</span>
-                ) : (
-                  <div className="link-items-list">
-                    {groupedLinks.telegram.map((l, idx) => (
-                      <div key={idx} className="link-item-row">
-                        <span className="link-item-url" title={l.url}>{l.url}</span>
-                        <div className="link-item-actions">
-                          <button onClick={() => handleCopy(l.url, `tg-${idx}`)} className="link-action-btn" title="Copy URL">
-                            {copiedLink === `tg-${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                          <a href={l.url} target="_blank" rel="noreferrer" className="link-action-btn" title="Visit Link">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                  {groupedLinks[key].length === 0 ? (
+                    <span className="platform-card-empty">No {key.replace('_', ' ')} detected.</span>
+                  ) : (
+                    <div className="link-items-list">
+                      {groupedLinks[key].map((l, idx) => (
+                        <div key={idx} className="link-item-row">
+                          <span className="link-item-url" title={l.url}>{l.url}</span>
+                          <div className="link-item-actions">
+                            <button
+                              onClick={() => handleCopy(l.url, `${key}-${idx}`)}
+                              className="link-action-btn"
+                              title="Copy URL"
+                            >
+                              {copiedLink === `${key}-${idx}` ? (
+                                <Check className="w-3 h-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                            <a
+                              href={l.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="link-action-btn"
+                              title="Visit Link"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Google Form Cards */}
-              <div className="platform-card google-form">
-                <div className="platform-card-header">Credential Forms ({groupedLinks.google_form.length})</div>
-                {groupedLinks.google_form.length === 0 ? (
-                  <span className="platform-card-empty">No credential forms detected.</span>
-                ) : (
-                  <div className="link-items-list">
-                    {groupedLinks.google_form.map((l, idx) => (
-                      <div key={idx} className="link-item-row">
-                        <span className="link-item-url" title={l.url}>{l.url}</span>
-                        <div className="link-item-actions">
-                          <button onClick={() => handleCopy(l.url, `gf-${idx}`)} className="link-action-btn" title="Copy URL">
-                            {copiedLink === `gf-${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                          <a href={l.url} target="_blank" rel="noreferrer" className="link-action-btn" title="Visit Link">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* APK Downloads */}
-              <div className="platform-card apk">
-                <div className="platform-card-header">APK Malware Targets ({groupedLinks.apk.length})</div>
-                {groupedLinks.apk.length === 0 ? (
-                  <span className="platform-card-empty">No APK downloads detected.</span>
-                ) : (
-                  <div className="link-items-list">
-                    {groupedLinks.apk.map((l, idx) => (
-                      <div key={idx} className="link-item-row">
-                        <span className="link-item-url" title={l.url}>{l.url}</span>
-                        <div className="link-item-actions">
-                          <button onClick={() => handleCopy(l.url, `apk-${idx}`)} className="link-action-btn" title="Copy URL">
-                            {copiedLink === `apk-${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                          <a href={l.url} target="_blank" rel="noreferrer" className="link-action-btn" title="Visit Link">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Other Targets */}
-              <div className="platform-card other">
-                <div className="platform-card-header">Other Redirects ({groupedLinks.other.length})</div>
-                {groupedLinks.other.length === 0 ? (
-                  <span className="platform-card-empty">No other targets detected.</span>
-                ) : (
-                  <div className="link-items-list">
-                    {groupedLinks.other.map((l, idx) => (
-                      <div key={idx} className="link-item-row">
-                        <span className="link-item-url" title={l.url}>{l.url}</span>
-                        <div className="link-item-actions">
-                          <button onClick={() => handleCopy(l.url, `other-${idx}`)} className="link-action-btn" title="Copy URL">
-                            {copiedLink === `other-${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                          <a href={l.url} target="_blank" rel="noreferrer" className="link-action-btn" title="Visit Link">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </>
           ) : (
             <div className="no-case-selected-container">
@@ -422,10 +422,9 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
-
       </div>
 
-      {/* Bottom Action Footer */}
+      {/* Bottom Action Bar */}
       {selectedReport && (
         <div className="admin-action-bar">
           <div className="action-bar-inner">
@@ -433,7 +432,6 @@ export default function AdminDashboard() {
               <span>Active Case:</span>
               <span className="active-case-id-badge">{selectedReport.id}</span>
             </div>
-            
             <div className="action-buttons-group">
               <button
                 onClick={() => handleReject(selectedReport.id)}
@@ -456,15 +454,19 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Dispatch notifications/console log area below workspace */}
-      {(notification || dispatchedMailLog || dispatchedChannels) && (
+      {/* Dispatch Logs (only shown after approve) */}
+      {(notification || dispatchedChannels) && (
         <div className="px-6 pb-4 bg-[#0a0c12] border-t border-white/5 flex flex-col gap-3 shrink-0">
           {notification && (
-            <div className={`p-3 rounded-lg border text-xs font-semibold ${
-              notification.type === 'success' ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-400' :
-              notification.type === 'error' ? 'bg-rose-500/5 border-rose-500/15 text-rose-400' :
-              'bg-indigo-500/5 border-indigo-500/15 text-indigo-400'
-            }`}>
+            <div
+              className={`p-3 rounded-lg border text-xs font-semibold ${
+                notification.type === 'success'
+                  ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-400'
+                  : notification.type === 'error'
+                  ? 'bg-rose-500/5 border-rose-500/15 text-rose-400'
+                  : 'bg-indigo-500/5 border-indigo-500/15 text-indigo-400'
+              }`}
+            >
               {notification.message}
             </div>
           )}
@@ -475,54 +477,55 @@ export default function AdminDashboard() {
                 <Terminal className="w-3.5 h-3.5 inline-block mr-1 text-emerald-400" />
                 <span>Multi-Vector Threat Intelligence Broadcast Log</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-2">
-                <div className="p-2.5 rounded bg-white/5 border border-white/10 text-xs">
-                  <div className="font-semibold text-emerald-400 mb-1">📧 Registrar Abuse Email</div>
-                  <div className="text-gray-400">Target: <span className="text-gray-200 font-mono">{dispatchedChannels.registrar_abuse?.target}</span></div>
-                  <div className="text-[10px] text-emerald-400/80 font-mono mt-1">Status: DISPATCHED</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-white/5 border border-white/10 text-xs">
-                  <div className="font-semibold text-rose-400 mb-1">🔴 Google Safe Browsing</div>
-                  <div className="text-gray-400">Action: <span className="text-gray-200">Triggers Red Interstitial Warning Screen</span></div>
-                  <div className="text-[10px] text-emerald-400/80 font-mono mt-1">Status: SUBMITTED</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-white/5 border border-white/10 text-xs">
-                  <div className="font-semibold text-sky-400 mb-1">🪟 MS SmartScreen</div>
-                  <div className="text-gray-400">Action: <span className="text-gray-200">Triggers Edge & Defender Blocklist</span></div>
-                  <div className="text-[10px] text-emerald-400/80 font-mono mt-1">Status: SUBMITTED</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-white/5 border border-white/10 text-xs">
-                  <div className="font-semibold text-yellow-400 mb-1">🔒 McAfee WebAdvisor</div>
-                  <div className="text-gray-400">Action: <span className="text-gray-200">SiteAdvisor Threat Entry</span></div>
-                  <div className="text-[10px] text-emerald-400/80 font-mono mt-1">Status: SUBMITTED</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-white/5 border border-white/10 text-xs">
-                  <div className="font-semibold text-indigo-400 mb-1">🌐 NordVPN CyberSec</div>
-                  <div className="text-gray-400">Action: <span className="text-gray-200">Nord Threat Protection DNS Block</span></div>
-                  <div className="text-[10px] text-emerald-400/80 font-mono mt-1">Status: SUBMITTED</div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                {channelConfigs.map((cfg) => {
+                  const channel = dispatchedChannels[cfg.key];
+                  if (!channel) return null;
+                  return (
+                    <div
+                      key={cfg.key}
+                      className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold">
+                          {cfg.icon} {cfg.label}
+                        </span>
+                        <StatusBadge status={channel.status} />
+                      </div>
+                      {channel.target && (
+                        <div className="text-gray-400">
+                          {cfg.targetLabel}:{' '}
+                          <span className="text-gray-200 font-mono">
+                            {channel[cfg.targetKey] || channel.target}
+                          </span>
+                        </div>
+                      )}
+                      {channel.action && (
+                        <div className="text-gray-400 mt-0.5">
+                          {cfg.actionLabel}:{' '}
+                          <span className="text-gray-200">
+                            {channel[cfg.actionKey] || channel.action}
+                          </span>
+                        </div>
+                      )}
+                      {channel.error && (
+                        <div className="text-rose-400 mt-1 text-[10px]">
+                          Error: {channel.error}
+                        </div>
+                      )}
+                      {channel.timestamp && (
+                        <div className="text-gray-500 text-[9px] mt-1 font-mono">
+                          {new Date(channel.timestamp).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
-
-          {dispatchedMailLog && (
-            <div className="dispatch-mail-overlay-log">
-              <div className="dispatch-log-header">
-                <Terminal className="w-3.5 h-3.5 inline-block mr-1" />
-                <span>Abuse Email Dispatch Log</span>
-              </div>
-              <div><span className="text-gray-500">TO:</span> <span className="text-white font-bold">{dispatchedMailLog.to}</span></div>
-              <div><span className="text-gray-500">SUBJECT:</span> <span className="text-white font-bold">{dispatchedMailLog.subject}</span></div>
-              <div className="mt-2 text-gray-300 whitespace-pre-wrap">{dispatchedMailLog.body}</div>
             </div>
           )}
         </div>
       )}
-
     </div>
   );
 }
