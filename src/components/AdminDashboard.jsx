@@ -16,20 +16,21 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Lock,
+  Server,
   Globe,
+  Lock,
   Wifi,
+  MapPin,
   Calendar,
   AlertOctagon,
+  Shield,
   Database,
   Cloud,
-  Shield,
+  Link
 } from 'lucide-react';
 import { API_BASE } from '../config';
 
-// ------------------------------------------------------------
-//  Komponen StatusBadge (Tailwind only)
-// ------------------------------------------------------------
+// Helper untuk badge status
 const StatusBadge = ({ status }) => {
   const styles = {
     DISPATCHED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -39,7 +40,7 @@ const StatusBadge = ({ status }) => {
     PASSED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     WARNING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-    UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
   };
   const icons = {
     DISPATCHED: <CheckCircle className="w-3 h-3 mr-1" />,
@@ -49,64 +50,48 @@ const StatusBadge = ({ status }) => {
     PASSED: <CheckCircle className="w-3 h-3 mr-1" />,
     WARNING: <AlertTriangle className="w-3 h-3 mr-1" />,
     CRITICAL: <XCircle className="w-3 h-3 mr-1" />,
-    UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />,
+    UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />
   };
   const label = status || 'PENDING';
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono border ${
-        styles[label] || styles.PENDING
-      }`}
-    >
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono border ${styles[label] || styles.PENDING}`}>
       {icons[label] || icons.PENDING}
       {label}
     </span>
   );
 };
 
-// ------------------------------------------------------------
-//  Komponen DetectorCard (Tailwind only)
-// ------------------------------------------------------------
+// Analisis Detector Card
 const DetectorCard = ({ icon: Icon, label, value, status, detail, loading }) => {
-  const colorMap = {
+  const statusColors = {
     PASSED: 'border-emerald-500/30 bg-emerald-500/5',
     WARNING: 'border-yellow-500/30 bg-yellow-500/5',
     CRITICAL: 'border-rose-500/30 bg-rose-500/5',
-    PENDING: 'border-indigo-500/30 bg-indigo-500/5',
     UNKNOWN: 'border-gray-500/30 bg-gray-500/5',
+    PENDING: 'border-indigo-500/30 bg-indigo-500/5'
   };
-  const iconColor = {
-    PASSED: 'text-emerald-400',
-    WARNING: 'text-yellow-400',
-    CRITICAL: 'text-rose-400',
-    PENDING: 'text-indigo-400',
-    UNKNOWN: 'text-gray-400',
-  };
+
   return (
-    <div
-      className={`p-3 rounded-lg border ${colorMap[status] || colorMap.PENDING} bg-white/5 transition-all hover:bg-white/10`}
-    >
-      <div className="flex items-center justify-between">
+    <div className={`p-3 rounded-lg border ${statusColors[status] || statusColors.PENDING} bg-white/5 transition-all hover:bg-white/10`}>
+      <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
-          <Icon className={`w-3.5 h-3.5 ${iconColor[status] || iconColor.PENDING}`} />
-          <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">
-            {label}
-          </span>
+          <Icon className={`w-4 h-4 ${status === 'PASSED' ? 'text-emerald-400' : status === 'CRITICAL' ? 'text-rose-400' : status === 'WARNING' ? 'text-yellow-400' : 'text-gray-400'}`} />
+          <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">{label}</span>
         </div>
-        <StatusBadge status={status} />
+        <StatusBadge status={status || 'PENDING'} />
       </div>
       {loading ? (
-        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+        <div className="mt-1 flex items-center gap-2">
           <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
-          Scanning...
+          <span className="text-xs text-gray-500">Scanning...</span>
         </div>
       ) : (
         <>
-          <div className="mt-1 font-mono text-sm text-white truncate select-all" title={value}>
+          <div className="mt-1 text-sm font-mono text-white truncate select-all" title={value}>
             {value || '—'}
           </div>
           {detail && (
-            <div className="text-[10px] text-gray-400 truncate" title={detail}>
+            <div className="mt-0.5 text-[10px] text-gray-400 truncate" title={detail}>
               {detail}
             </div>
           )}
@@ -116,9 +101,6 @@ const DetectorCard = ({ icon: Icon, label, value, status, detail, loading }) => 
   );
 };
 
-// ------------------------------------------------------------
-//  MAIN DASHBOARD (Tailwind only – no custom CSS)
-// ------------------------------------------------------------
 export default function AdminDashboard() {
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
@@ -127,6 +109,7 @@ export default function AdminDashboard() {
   const [notification, setNotification] = useState(null);
   const [dispatchedChannels, setDispatchedChannels] = useState(null);
   const [copiedLink, setCopiedLink] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   // Fetch pending reports
   const fetchPending = async () => {
@@ -136,9 +119,9 @@ export default function AdminDashboard() {
       const data = await res.json();
       setReports(data);
       if (data.length > 0) {
-        const stillExists = selectedReport && data.some((r) => r.id === selectedReport.id);
+        const stillExists = selectedReport && data.some(r => r.id === selectedReport.id);
         if (stillExists) {
-          setSelectedReport(data.find((r) => r.id === selectedReport.id));
+          setSelectedReport(data.find(r => r.id === selectedReport.id));
         } else {
           setSelectedReport(data[0]);
         }
@@ -220,7 +203,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Copy URL
+  // Copy
   const handleCopy = (text, idx) => {
     navigator.clipboard.writeText(text);
     setCopiedLink(idx);
@@ -231,7 +214,7 @@ export default function AdminDashboard() {
   const getGroupedLinks = (links) => {
     const groups = { whatsapp: [], telegram: [], google_form: [], apk: [], other: [] };
     if (Array.isArray(links)) {
-      links.forEach((link) => {
+      links.forEach(link => {
         if (groups[link.type]) groups[link.type].push(link);
         else groups.other.push(link);
       });
@@ -241,57 +224,60 @@ export default function AdminDashboard() {
 
   const groupedLinks = selectedReport ? getGroupedLinks(selectedReport.outgoing_links) : null;
 
-  // Simulasi data analisis (nantinya dari API)
+  // Generate analysis data from report
   const getAnalysisData = (report) => {
     if (!report) return null;
-    return {
+
+    // Simulasi analisis - ini akan diisi dari backend nantinya
+    const analysis = {
       crawl_status: {
         status: report.screenshot_url ? 'PASSED' : 'PENDING',
         value: report.screenshot_url ? 'Successfully crawled' : 'Pending scan',
-        detail: report.screenshot_url
-          ? `Last scan: ${new Date().toLocaleString()}`
-          : 'Waiting for janitor...',
+        detail: report.screenshot_url ? `Last scan: ${new Date().toLocaleString()}` : 'Waiting for janitor...'
       },
       ssl_certificate: {
         status: 'PASSED',
         value: 'Valid SSL Certificate',
-        detail: "Issued by: Let's Encrypt R3, Expires: 2026-11-15",
+        detail: 'Issued by: Let\'s Encrypt R3, Expires: 2026-11-15'
       },
       dns_records: {
         status: 'PASSED',
         value: 'A: 188.114.97.0, 188.114.96.0',
-        detail: 'Cloudflare DNS (CDN)',
+        detail: 'Cloudflare DNS (CDN)'
       },
       open_ports: {
         status: 'WARNING',
         value: 'Port 80 (HTTP), 443 (HTTPS) open',
-        detail: 'Port 22 (SSH) filtered',
+        detail: 'Port 22 (SSH) filtered'
       },
       blacklist_status: {
         status: 'PASSED',
         value: 'Not blacklisted',
-        detail: 'Clean on major RBLs',
+        detail: 'Clean on major RBLs'
       },
       domain_age: {
         status: 'WARNING',
         value: 'Registered 45 days ago',
-        detail: 'Created: 2026-06-30',
+        detail: 'Created: 2026-06-30'
       },
       registrar_info: {
         status: 'PASSED',
         value: 'GoDaddy.com, LLC',
-        detail: 'Abuse: abuse@godaddy.com',
+        detail: 'Abuse: abuse@godaddy.com'
       },
       cdn_detection: {
         status: 'WARNING',
         value: 'Cloudflare detected',
-        detail: 'CDN provider: Cloudflare, Inc.',
-      },
+        detail: 'CDN provider: Cloudflare, Inc.'
+      }
     };
+
+    return analysis;
   };
 
   const analysisData = selectedReport ? getAnalysisData(selectedReport) : null;
 
+  // Channel cards configuration
   const channelConfigs = [
     {
       key: 'registrar_abuse',
@@ -300,7 +286,7 @@ export default function AdminDashboard() {
       targetLabel: 'Target',
       targetKey: 'target',
       actionLabel: 'Action',
-      actionKey: 'subject',
+      actionKey: 'subject'
     },
     {
       key: 'google_safe_browsing',
@@ -309,7 +295,7 @@ export default function AdminDashboard() {
       targetLabel: 'Endpoint',
       targetKey: 'endpoint',
       actionLabel: 'Action',
-      actionKey: 'action',
+      actionKey: 'action'
     },
     {
       key: 'microsoft_smartscreen',
@@ -318,7 +304,7 @@ export default function AdminDashboard() {
       targetLabel: 'Endpoint',
       targetKey: 'endpoint',
       actionLabel: 'Action',
-      actionKey: 'action',
+      actionKey: 'action'
     },
     {
       key: 'mcafee_webadvisor',
@@ -327,7 +313,7 @@ export default function AdminDashboard() {
       targetLabel: 'Endpoint',
       targetKey: 'endpoint',
       actionLabel: 'Action',
-      actionKey: 'action',
+      actionKey: 'action'
     },
     {
       key: 'nordvpn_cybersec',
@@ -336,223 +322,187 @@ export default function AdminDashboard() {
       targetLabel: 'Endpoint',
       targetKey: 'endpoint',
       actionLabel: 'Action',
-      actionKey: 'action',
-    },
+      actionKey: 'action'
+    }
   ];
 
-  // ------------------------------------------------------------
-  //  RENDER
-  // ------------------------------------------------------------
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden w-full bg-[#08090d]">
-      {/* ========== TOP BAR ========== */}
-      <div className="flex justify-between items-center px-6 py-3 bg-[#0a0c12] border-b border-white/5 flex-shrink-0 h-12">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+    <div className="admin-dashboard-container">
+      {/* Top Bar */}
+      <div className="admin-top-bar">
+        <div className="admin-top-title">
           <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
           <span>Threat Triage & Review Center</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleRunJanitor}
-            className="flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold uppercase bg-indigo-500/10 border border-indigo-500/20 rounded-md text-indigo-300 hover:bg-indigo-500/20 transition"
-          >
+        <div className="admin-top-actions">
+          <button onClick={handleRunJanitor} className="admin-top-btn">
             <Play className="w-3.5 h-3.5 fill-current" />
-            Trigger Janitor
+            <span>Trigger Janitor Takedown</span>
           </button>
-          <button
-            onClick={fetchPending}
-            className="p-1.5 bg-white/5 border border-white/5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition"
-            title="Refresh"
-          >
+          <button onClick={fetchPending} className="admin-refresh-btn" title="Refresh Queue">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* ========== 3 KOLOM ========== */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* ---------- KOLOM KIRI (Queue) ---------- */}
-        <div className="w-80 min-w-[320px] border-r border-white/5 bg-[#050608]/40 flex flex-col overflow-y-auto flex-shrink-0">
-          <div className="flex justify-between items-center px-4 py-3 border-b border-white/5">
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-              Pending Cases ({reports.length})
-            </span>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-              Priority Hit
-            </span>
+      {/* Main Workspace */}
+      <div className="admin-workspace">
+        {/* Left: Queue */}
+        <div className="sidebar-queue-pane">
+          <div className="sidebar-queue-header">
+            <span className="queue-header-label">Pending Cases ({reports.length})</span>
+            <span className="queue-priority-badge">Priority Hit</span>
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center flex-1 p-8 text-gray-400">
+            <div className="queue-loading">
               <RefreshCw className="w-6 h-6 animate-spin text-indigo-400 mb-2" />
-              Loading...
+              <span>Loading Queue...</span>
             </div>
           ) : reports.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 p-8 text-gray-400">
-              <ShieldCheck className="w-8 h-8 text-emerald-500/20 mb-2" />
-              No Threats
+            <div className="queue-empty">
+              <ShieldCheck className="queue-empty-icon w-8 h-8" />
+              <span>No Threats in Queue</span>
             </div>
           ) : (
-            reports.map((r) => (
-              <div
-                key={r.id}
-                onClick={() => {
-                  setSelectedReport(r);
-                  setDispatchedChannels(null);
-                }}
-                className={`px-4 py-4 border-b border-white/5 border-l-4 cursor-pointer transition ${
-                  selectedReport?.id === r.id
-                    ? 'bg-indigo-500/10 border-l-indigo-500'
-                    : 'border-l-transparent hover:bg-white/5'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-[11px] font-extrabold px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-cyan-400 uppercase">
-                    {r.target_brand_raw}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-gray-400">
-                    <Users className="w-3 h-3 text-cyan-400" />
-                    {r.hit_count}
-                  </span>
+            <div>
+              {reports.map((report) => (
+                <div
+                  key={report.id}
+                  onClick={() => {
+                    setSelectedReport(report);
+                    setDispatchedChannels(null);
+                  }}
+                  className={`queue-item ${selectedReport?.id === report.id ? 'active' : ''}`}
+                >
+                  <div className="queue-item-meta">
+                    <span className="queue-item-brand">{report.target_brand_raw}</span>
+                    <span className="queue-item-hits">
+                      <Users className="queue-item-hits-icon w-3 h-3" />
+                      <span>{report.hit_count} hits</span>
+                    </span>
+                  </div>
+                  <div className="queue-item-url" title={report.reported_url}>
+                    {report.reported_url}
+                  </div>
+                  <div className="queue-item-time">
+                    {report.created_at ? new Date(report.created_at).toLocaleTimeString() : 'Recent'}
+                  </div>
                 </div>
-                <div className="font-mono text-xs text-gray-400 truncate" title={r.reported_url}>
-                  {r.reported_url}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-1">
-                  {r.created_at ? new Date(r.created_at).toLocaleTimeString() : 'Recent'}
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
 
-        {/* ---------- KOLOM TENGAH (Forensics) ---------- */}
-        <div className="flex-1 p-5 overflow-y-auto border-r border-white/5 flex flex-col gap-5 min-w-0 bg-[#08090d]">
+        {/* Middle: Forensics */}
+        <div className="middle-forensics-pane">
           {selectedReport ? (
             <>
-              {/* Technical Specs */}
               <div>
-                <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                  Technical Specifications
-                </h3>
-                <div className="bg-[#0d1017]/50 border border-white/5 rounded-xl p-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <h3 className="specs-title">Technical Specifications</h3>
+                <div className="specs-card">
+                  <div className="specs-grid">
                     <div>
-                      <span className="block text-[10px] font-semibold text-gray-500 uppercase">
-                        Server IP
-                      </span>
-                      <span className="font-mono text-sm text-white bg-black/40 px-2 py-1 rounded border border-white/5 inline-block select-all">
+                      <span className="specs-label">Server IP Address</span>
+                      <span className="specs-value-mono select-all">
                         {selectedReport.ip_address || 'Pending Lookup'}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-[10px] font-semibold text-gray-500 uppercase">
-                        Hosting
-                      </span>
-                      <span className="text-sm font-semibold text-white truncate block">
+                      <span className="specs-label">Hosting Provider</span>
+                      <span className="specs-value-text truncate block">
                         {selectedReport.hosting_provider || 'Pending Lookup'}
                       </span>
                     </div>
-                    <div className="col-span-2">
-                      <span className="block text-[10px] font-semibold text-gray-500 uppercase">
-                        Abuse Contact
-                      </span>
-                      <span className="font-mono text-sm text-cyan-400 flex items-center gap-1.5">
+                    <div className="specs-grid-full">
+                      <span className="specs-label">Abuse Contact Email</span>
+                      <span className="specs-value-email select-all">
                         <Mail className="w-3.5 h-3.5" />
-                        {selectedReport.abuse_email || 'Searching registrars...'}
+                        <span>{selectedReport.abuse_email || 'Searching registrars...'}</span>
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Screenshot */}
-              <div className="flex flex-col flex-1 min-h-[380px]">
-                <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                  Forensic Screenshot (Mobile Viewport)
-                </h3>
-                <div className="flex-1 border border-white/5 rounded-xl overflow-hidden bg-[#0d0f14] flex flex-col shadow-xl">
-                  <div className="h-9 bg-white/5 border-b border-white/5 flex items-center px-3 gap-2">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+              <div className="screenshot-container">
+                <h3 className="specs-title">Forensic Screenshot (Mobile Viewport)</h3>
+                <div className="browser-mockup-frame">
+                  <div className="browser-header-row">
+                    <div className="browser-control-dots">
+                      <div className="browser-dot dot-red" />
+                      <div className="browser-dot dot-yellow" />
+                      <div className="browser-dot dot-green" />
                     </div>
-                    <div className="flex-1 ml-3 max-w-[70%] h-5 bg-black/40 border border-white/5 rounded flex items-center px-2 font-mono text-[11px] text-gray-400 truncate select-all">
+                    <div className="browser-url-input select-all">
                       {selectedReport.reported_url}
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 bg-black/30 flex items-start justify-center">
+                  <div className="browser-body-content">
                     {selectedReport.screenshot_url ? (
                       <img
                         src={`${API_BASE}${selectedReport.screenshot_url}`}
-                        alt="Screenshot"
-                        className="max-w-[280px] w-full border border-white/10 rounded shadow-2xl"
+                        alt="Phishing mobile preview screenshot"
+                        className="forensic-screenshot-img"
                       />
                     ) : (
-                      <div className="flex flex-col items-center justify-center flex-1 text-gray-400">
+                      <div className="screenshot-placeholder">
                         <RefreshCw className="w-8 h-8 animate-spin text-indigo-400 mb-2" />
-                        Generating forensic evidence...
+                        <span>Generating forensic evidence...</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Detected Outgoing Links */}
-              {groupedLinks && Object.values(groupedLinks).some((arr) => arr.length > 0) && (
-                <div>
-                  <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                    Detected Outgoing Targets
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {/* Outgoing Links yang ditemukan */}
+              {groupedLinks && Object.values(groupedLinks).some(arr => arr.length > 0) && (
+                <div className="mt-4">
+                  <h3 className="specs-title">Detected Outgoing Targets</h3>
+                  <div className="grid grid-cols-1 gap-2">
                     {Object.entries({
-                      whatsapp: { label: '💬 WhatsApp', cls: 'border-emerald-500' },
-                      telegram: { label: '✈️ Telegram', cls: 'border-sky-500' },
-                      google_form: { label: '📝 Credential Forms', cls: 'border-purple-500' },
-                      apk: { label: '📲 APK Downloads', cls: 'border-amber-500' },
-                      other: { label: '🔗 Other Redirects', cls: 'border-gray-500' },
-                    }).map(([key, { label, cls }]) => {
-                      const items = groupedLinks[key];
-                      if (!items || items.length === 0) return null;
+                      whatsapp: { label: '💬 WhatsApp', color: 'text-emerald-400' },
+                      telegram: { label: '✈️ Telegram', color: 'text-sky-400' },
+                      google_form: { label: '📝 Credential Forms', color: 'text-blue-400' },
+                      apk: { label: '📲 APK Downloads', color: 'text-rose-400' },
+                      other: { label: '🔗 Other Redirects', color: 'text-gray-400' }
+                    }).map(([key, { label, color }]) => {
+                      const links = groupedLinks[key];
+                      if (!links || links.length === 0) return null;
                       return (
-                        <div
-                          key={key}
-                          className={`p-3 rounded-lg bg-black/30 border-l-4 ${cls} border border-white/5`}
-                        >
-                          <div className="text-[10px] font-bold uppercase tracking-wider mb-1">
-                            {label} ({items.length})
-                          </div>
-                          {items.map((link, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between gap-2 text-[11px] font-mono text-gray-300 truncate"
-                            >
-                              <span className="truncate" title={link.url}>
-                                {link.url}
-                              </span>
-                              <div className="flex gap-1 flex-shrink-0">
-                                <button
-                                  onClick={() => handleCopy(link.url, `${key}-${idx}`)}
-                                  className="hover:text-white"
-                                >
-                                  {copiedLink === `${key}-${idx}` ? (
-                                    <Check className="w-3 h-3 text-emerald-400" />
-                                  ) : (
-                                    <Copy className="w-3 h-3" />
-                                  )}
-                                </button>
-                                <a
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="hover:text-white"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
+                        <div key={key} className="p-2 rounded-lg bg-white/5 border border-white/10">
+                          <div className={`text-xs font-semibold ${color} mb-1`}>{label} ({links.length})</div>
+                          <div className="space-y-1">
+                            {links.map((link, idx) => (
+                              <div key={idx} className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] text-gray-300 font-mono truncate" title={link.url}>
+                                  {link.url}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleCopy(link.url, `${key}-${idx}`)}
+                                    className="p-1 rounded hover:bg-white/10 transition-colors"
+                                    title="Copy URL"
+                                  >
+                                    {copiedLink === `${key}-${idx}` ? (
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 text-gray-400 hover:text-white" />
+                                    )}
+                                  </button>
+                                  <a
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 rounded hover:bg-white/10 transition-colors"
+                                    title="Visit Link"
+                                  >
+                                    <ExternalLink className="w-3 h-3 text-gray-400 hover:text-white" />
+                                  </a>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
                       );
                     })}
@@ -561,98 +511,126 @@ export default function AdminDashboard() {
               )}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center flex-1 text-gray-400 p-8">
-              <Eye className="w-12 h-12 text-white/5 mb-3" />
-              <h3 className="text-sm font-bold text-gray-500 uppercase">No Case Selected</h3>
-              <p className="text-xs max-w-xs mt-1.5 text-center">
+            <div className="no-case-selected-container">
+              <Eye className="no-case-icon w-12 h-12" />
+              <h3 className="no-case-title">No Case Selected</h3>
+              <p className="no-case-description">
                 Select a threat incident from the left sidebar queue to inspect forensic evidence.
               </p>
             </div>
           )}
         </div>
 
-        {/* ---------- KOLOM KANAN (Security Analysis) ---------- */}
-        <div className="w-96 min-w-[380px] p-5 overflow-y-auto bg-[#0b0d14]/40 flex flex-col gap-3 flex-shrink-0">
+        {/* Right: Technical Footprint & Security Analysis */}
+        <div className="right-links-pane">
           {selectedReport && analysisData ? (
             <>
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">
-                  Technical Footprint & Security Analysis
+              <div className="platform-title-container">
+                <h3 className="platform-title-text">
+                  <Shield className="w-4 h-4 text-cyan-400" />
+                  <span>Technical Footprint & Security Analysis</span>
                 </h3>
               </div>
-              <div className="flex flex-col gap-2">
-                <DetectorCard
-                  icon={Activity}
-                  label="Crawl Status"
-                  {...analysisData.crawl_status}
-                />
-                <DetectorCard
-                  icon={Lock}
-                  label="SSL Certificate"
-                  {...analysisData.ssl_certificate}
-                />
-                <DetectorCard
-                  icon={Globe}
-                  label="DNS Records"
-                  {...analysisData.dns_records}
-                />
-                <DetectorCard
-                  icon={Wifi}
-                  label="Open Ports"
-                  {...analysisData.open_ports}
-                />
-                <DetectorCard
-                  icon={AlertOctagon}
-                  label="Blacklist Status"
-                  {...analysisData.blacklist_status}
-                />
-                <DetectorCard
-                  icon={Calendar}
-                  label="Domain Age"
-                  {...analysisData.domain_age}
-                />
-                <DetectorCard
-                  icon={Database}
-                  label="Registrar Info"
-                  {...analysisData.registrar_info}
-                />
-                <DetectorCard
-                  icon={Cloud}
-                  label="CDN Detection"
-                  {...analysisData.cdn_detection}
-                />
-              </div>
-              {/* Summary */}
-              <div className="p-4 rounded-xl bg-black/30 border border-white/5 mt-1">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                    Overall Security Posture
-                  </span>
-                  <span className="text-xs font-bold text-yellow-400">⚠️ WARNING</span>
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-2">
+                  {/* Crawl Status */}
+                  <DetectorCard
+                    icon={Activity}
+                    label="Crawl Status"
+                    value={analysisData.crawl_status.value}
+                    detail={analysisData.crawl_status.detail}
+                    status={analysisData.crawl_status.status}
+                    loading={analysisData.crawl_status.status === 'PENDING'}
+                  />
+
+                  {/* SSL Certificate */}
+                  <DetectorCard
+                    icon={Lock}
+                    label="SSL Certificate"
+                    value={analysisData.ssl_certificate.value}
+                    detail={analysisData.ssl_certificate.detail}
+                    status={analysisData.ssl_certificate.status}
+                  />
+
+                  {/* DNS Records */}
+                  <DetectorCard
+                    icon={Globe}
+                    label="DNS Records"
+                    value={analysisData.dns_records.value}
+                    detail={analysisData.dns_records.detail}
+                    status={analysisData.dns_records.status}
+                  />
+
+                  {/* Open Ports */}
+                  <DetectorCard
+                    icon={Wifi}
+                    label="Open Ports"
+                    value={analysisData.open_ports.value}
+                    detail={analysisData.open_ports.detail}
+                    status={analysisData.open_ports.status}
+                  />
+
+                  {/* Blacklist Status */}
+                  <DetectorCard
+                    icon={AlertOctagon}
+                    label="Blacklist Status"
+                    value={analysisData.blacklist_status.value}
+                    detail={analysisData.blacklist_status.detail}
+                    status={analysisData.blacklist_status.status}
+                  />
+
+                  {/* Domain Age */}
+                  <DetectorCard
+                    icon={Calendar}
+                    label="Domain Age"
+                    value={analysisData.domain_age.value}
+                    detail={analysisData.domain_age.detail}
+                    status={analysisData.domain_age.status}
+                  />
+
+                  {/* Registrar Info */}
+                  <DetectorCard
+                    icon={Database}
+                    label="Registrar Info"
+                    value={analysisData.registrar_info.value}
+                    detail={analysisData.registrar_info.detail}
+                    status={analysisData.registrar_info.status}
+                  />
+
+                  {/* CDN Detection */}
+                  <DetectorCard
+                    icon={Cloud}
+                    label="CDN Detection"
+                    value={analysisData.cdn_detection.value}
+                    detail={analysisData.cdn_detection.detail}
+                    status={analysisData.cdn_detection.status}
+                  />
                 </div>
-                <div className="text-xs text-gray-300">6/8 checks passed, 2 warnings detected</div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                    ✓ SSL Valid
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                    ✓ DNS OK
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-bold border border-yellow-500/20">
-                    ⚠ Cloudflare
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-bold border border-yellow-500/20">
-                    ⚠ Domain New
-                  </span>
+
+                {/* Summary Badge */}
+                <div className="p-3 rounded-lg border border-white/10 bg-white/5 mt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400">Overall Security Posture</span>
+                    <StatusBadge status="WARNING" />
+                  </div>
+                  <div className="text-xs text-gray-300 mt-1">
+                    6/8 checks passed, 2 warnings detected
+                  </div>
+                  <div className="flex gap-1 mt-2">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px]">✓ SSL Valid</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px]">✓ DNS OK</span>
+                    <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[9px]">⚠ Cloudflare</span>
+                    <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[9px]">⚠ Domain New</span>
+                  </div>
                 </div>
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center flex-1 text-gray-400 p-8">
-              <Shield className="w-12 h-12 text-white/5 mb-3" />
-              <h3 className="text-sm font-bold text-gray-500 uppercase">No Case Selected</h3>
-              <p className="text-xs max-w-xs mt-1.5 text-center">
+            <div className="no-case-selected-container">
+              <Shield className="no-case-icon w-12 h-12" />
+              <h3 className="no-case-title">No Case Selected</h3>
+              <p className="no-case-description">
                 Security analysis and technical footprint will appear here once a case is selected.
               </p>
             </div>
@@ -660,39 +638,39 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ========== BOTTOM ACTION BAR ========== */}
+      {/* Bottom Action Bar */}
       {selectedReport && (
-        <div className="h-[72px] flex items-center px-6 bg-[#0a0c12]/95 border-t border-white/5 flex-shrink-0 backdrop-blur-md">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase">
+        <div className="admin-action-bar">
+          <div className="action-bar-inner">
+            <div className="active-case-section">
               <span>Active Case:</span>
-              <span className="font-mono text-sm text-white bg-white/5 border border-white/5 px-2.5 py-1 rounded select-all">
-                {selectedReport.id}
-              </span>
+              <span className="active-case-id-badge">{selectedReport.id}</span>
             </div>
-            <div className="flex gap-3">
+            <div className="action-buttons-group">
               <button
                 onClick={() => handleReject(selectedReport.id)}
                 disabled={actionLoading}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase rounded border border-rose-500/25 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="action-btn action-btn-reject"
               >
-                <ShieldX className="w-4 h-4" /> Reject Report
+                <ShieldX className="w-4 h-4" />
+                <span>Reject Report</span>
               </button>
               <button
                 onClick={() => handleApprove(selectedReport.id)}
                 disabled={actionLoading}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase rounded bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="action-btn action-btn-approve"
               >
-                <ShieldCheck className="w-4 h-4" /> Approve & Send Takedown
+                <ShieldCheck className="w-4 h-4" />
+                <span>Approve & Send Takedown</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ========== DISPATCH LOGS ========== */}
+      {/* Dispatch Logs */}
       {(notification || dispatchedChannels) && (
-        <div className="px-6 pb-4 bg-[#0a0c12] border-t border-white/5 flex flex-col gap-3 flex-shrink-0">
+        <div className="px-6 pb-4 bg-[#0a0c12] border-t border-white/5 flex flex-col gap-3 shrink-0">
           {notification && (
             <div
               className={`p-3 rounded-lg border text-xs font-semibold ${
@@ -708,41 +686,50 @@ export default function AdminDashboard() {
           )}
 
           {dispatchedChannels && (
-            <div className="p-3 bg-black/60 border border-white/5 rounded-lg font-mono text-xs text-gray-200 max-h-36 overflow-y-auto">
-              <div className="text-cyan-400 font-bold border-b border-white/5 pb-1 mb-2 uppercase flex items-center gap-1.5">
-                <Terminal className="w-3.5 h-3.5 inline" /> Multi-Vector Threat Intelligence
-                Broadcast Log
+            <div className="dispatch-mail-overlay-log">
+              <div className="dispatch-log-header">
+                <Terminal className="w-3.5 h-3.5 inline-block mr-1 text-emerald-400" />
+                <span>Multi-Vector Threat Intelligence Broadcast Log</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
                 {channelConfigs.map((cfg) => {
-                  const ch = dispatchedChannels[cfg.key];
-                  if (!ch) return null;
+                  const channel = dispatchedChannels[cfg.key];
+                  if (!channel) return null;
                   return (
-                    <div key={cfg.key} className="p-2.5 rounded bg-white/5 border border-white/10">
-                      <div className="flex justify-between items-center mb-1">
+                    <div
+                      key={cfg.key}
+                      className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs"
+                    >
+                      <div className="flex items-center justify-between mb-1">
                         <span className="font-semibold">
                           {cfg.icon} {cfg.label}
                         </span>
-                        <StatusBadge status={ch.status} />
+                        <StatusBadge status={channel.status} />
                       </div>
-                      {ch.target && (
+                      {channel.target && (
                         <div className="text-gray-400">
                           {cfg.targetLabel}:{' '}
                           <span className="text-gray-200 font-mono">
-                            {ch[cfg.targetKey] || ch.target}
+                            {channel[cfg.targetKey] || channel.target}
                           </span>
                         </div>
                       )}
-                      {ch.action && (
-                        <div className="text-gray-400">
+                      {channel.action && (
+                        <div className="text-gray-400 mt-0.5">
                           {cfg.actionLabel}:{' '}
-                          <span className="text-gray-200">{ch[cfg.actionKey] || ch.action}</span>
+                          <span className="text-gray-200">
+                            {channel[cfg.actionKey] || channel.action}
+                          </span>
                         </div>
                       )}
-                      {ch.error && <div className="text-rose-400 text-[10px]">Error: {ch.error}</div>}
-                      {ch.timestamp && (
-                        <div className="text-gray-500 text-[9px] font-mono mt-1">
-                          {new Date(ch.timestamp).toLocaleString()}
+                      {channel.error && (
+                        <div className="text-rose-400 mt-1 text-[10px]">
+                          Error: {channel.error}
+                        </div>
+                      )}
+                      {channel.timestamp && (
+                        <div className="text-gray-500 text-[9px] mt-1 font-mono">
+                          {new Date(channel.timestamp).toLocaleString()}
                         </div>
                       )}
                     </div>
