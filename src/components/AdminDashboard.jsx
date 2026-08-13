@@ -522,115 +522,96 @@ export default function AdminDashboard() {
         </div>
 
         {/* Right: Technical Footprint & Security Analysis */}
-        <div className="right-links-pane">
+        <div className="w-96 min-w-[380px] p-5 overflow-y-auto bg-[#0b0d14]/40 flex flex-col gap-4 flex-shrink-0 border-l border-white/5">
           {selectedReport && analysisData ? (
             <>
-              <div className="platform-title-container">
-                <h3 className="platform-title-text">
-                  <Shield className="w-4 h-4 text-cyan-400" />
-                  <span>Technical Footprint & Security Analysis</span>
+              {/* Header dengan border bawah */}
+              <div className="flex items-center gap-2.5 pb-3 border-b border-white/5">
+                <Shield className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">
+                  Technical Footprint & Security Analysis
                 </h3>
               </div>
 
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 gap-2">
-                  {/* Crawl Status */}
-                  <DetectorCard
-                    icon={Activity}
-                    label="Crawl Status"
-                    value={analysisData.crawl_status.value}
-                    detail={analysisData.crawl_status.detail}
-                    status={analysisData.crawl_status.status}
-                    loading={analysisData.crawl_status.status === 'PENDING'}
-                  />
+              {/* Detector Cards - compact & rapi */}
+              <div className="flex flex-col gap-2.5">
+                <DetectorCard
+                  icon={Activity}
+                  label="Crawl Status"
+                  {...analysisData.crawl_status}
+                />
+                <DetectorCard
+                  icon={Lock}
+                  label="SSL Certificate"
+                  {...analysisData.ssl_certificate}
+                />
+                <DetectorCard
+                  icon={Globe}
+                  label="DNS Records"
+                  {...analysisData.dns_records}
+                />
+                <DetectorCard
+                  icon={Wifi}
+                  label="Open Ports"
+                  {...analysisData.open_ports}
+                />
+                <DetectorCard
+                  icon={AlertOctagon}
+                  label="Blacklist Status"
+                  {...analysisData.blacklist_status}
+                />
+                <DetectorCard
+                  icon={Calendar}
+                  label="Domain Age"
+                  {...analysisData.domain_age}
+                />
+                <DetectorCard
+                  icon={Database}
+                  label="Registrar Info"
+                  {...analysisData.registrar_info}
+                />
+                <DetectorCard
+                  icon={Cloud}
+                  label="CDN Detection"
+                  {...analysisData.cdn_detection}
+                />
+              </div>
 
-                  {/* SSL Certificate */}
-                  <DetectorCard
-                    icon={Lock}
-                    label="SSL Certificate"
-                    value={analysisData.ssl_certificate.value}
-                    detail={analysisData.ssl_certificate.detail}
-                    status={analysisData.ssl_certificate.status}
-                  />
-
-                  {/* DNS Records */}
-                  <DetectorCard
-                    icon={Globe}
-                    label="DNS Records"
-                    value={analysisData.dns_records.value}
-                    detail={analysisData.dns_records.detail}
-                    status={analysisData.dns_records.status}
-                  />
-
-                  {/* Open Ports */}
-                  <DetectorCard
-                    icon={Wifi}
-                    label="Open Ports"
-                    value={analysisData.open_ports.value}
-                    detail={analysisData.open_ports.detail}
-                    status={analysisData.open_ports.status}
-                  />
-
-                  {/* Blacklist Status */}
-                  <DetectorCard
-                    icon={AlertOctagon}
-                    label="Blacklist Status"
-                    value={analysisData.blacklist_status.value}
-                    detail={analysisData.blacklist_status.detail}
-                    status={analysisData.blacklist_status.status}
-                  />
-
-                  {/* Domain Age */}
-                  <DetectorCard
-                    icon={Calendar}
-                    label="Domain Age"
-                    value={analysisData.domain_age.value}
-                    detail={analysisData.domain_age.detail}
-                    status={analysisData.domain_age.status}
-                  />
-
-                  {/* Registrar Info */}
-                  <DetectorCard
-                    icon={Database}
-                    label="Registrar Info"
-                    value={analysisData.registrar_info.value}
-                    detail={analysisData.registrar_info.detail}
-                    status={analysisData.registrar_info.status}
-                  />
-
-                  {/* CDN Detection */}
-                  <DetectorCard
-                    icon={Cloud}
-                    label="CDN Detection"
-                    value={analysisData.cdn_detection.value}
-                    detail={analysisData.cdn_detection.detail}
-                    status={analysisData.cdn_detection.status}
-                  />
+              {/* Summary Badge - lebih kaya visual */}
+              <div className="mt-1 p-4 rounded-xl bg-gradient-to-br from-black/40 via-black/30 to-black/20 border border-white/10 backdrop-blur-sm shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">
+                    Overall Security Posture
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/20">
+                    <AlertTriangle className="w-3 h-3" />
+                    WARNING
+                  </span>
                 </div>
-
-                {/* Summary Badge */}
-                <div className="p-3 rounded-lg border border-white/10 bg-white/5 mt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-gray-400">Overall Security Posture</span>
-                    <StatusBadge status="WARNING" />
-                  </div>
-                  <div className="text-xs text-gray-300 mt-1">
-                    6/8 checks passed, 2 warnings detected
-                  </div>
-                  <div className="flex gap-1 mt-2">
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px]">✓ SSL Valid</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px]">✓ DNS OK</span>
-                    <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[9px]">⚠ Cloudflare</span>
-                    <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[9px]">⚠ Domain New</span>
-                  </div>
+                <div className="text-xs text-gray-300 mt-1.5 font-medium">
+                  6/8 checks passed, 2 warnings detected
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+                    <CheckCircle className="w-3 h-3" /> SSL Valid
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+                    <CheckCircle className="w-3 h-3" /> DNS OK
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-medium border border-yellow-500/20">
+                    <AlertTriangle className="w-3 h-3" /> Cloudflare
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-medium border border-yellow-500/20">
+                    <AlertTriangle className="w-3 h-3" /> Domain New
+                  </span>
                 </div>
               </div>
             </>
           ) : (
-            <div className="no-case-selected-container">
-              <Shield className="no-case-icon w-12 h-12" />
-              <h3 className="no-case-title">No Case Selected</h3>
-              <p className="no-case-description">
+            <div className="flex flex-col items-center justify-center flex-1 text-gray-400 p-8 text-center">
+              <Shield className="w-12 h-12 text-white/5 mb-4" />
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">No Case Selected</h3>
+              <p className="text-xs max-w-xs mt-2 leading-relaxed text-gray-500">
                 Security analysis and technical footprint will appear here once a case is selected.
               </p>
             </div>
@@ -673,13 +654,12 @@ export default function AdminDashboard() {
         <div className="px-6 pb-4 bg-[#0a0c12] border-t border-white/5 flex flex-col gap-3 shrink-0">
           {notification && (
             <div
-              className={`p-3 rounded-lg border text-xs font-semibold ${
-                notification.type === 'success'
+              className={`p-3 rounded-lg border text-xs font-semibold ${notification.type === 'success'
                   ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-400'
                   : notification.type === 'error'
-                  ? 'bg-rose-500/5 border-rose-500/15 text-rose-400'
-                  : 'bg-indigo-500/5 border-indigo-500/15 text-indigo-400'
-              }`}
+                    ? 'bg-rose-500/5 border-rose-500/15 text-rose-400'
+                    : 'bg-indigo-500/5 border-indigo-500/15 text-indigo-400'
+                }`}
             >
               {notification.message}
             </div>
