@@ -34,20 +34,24 @@ import { API_BASE } from '../config';
 const StatusBadge = ({ status }) => {
   const styles = {
     DISPATCHED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    SENT: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     SUBMITTED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     FAILED: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     PASSED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    CLEAN: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     WARNING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
   };
   const icons = {
     DISPATCHED: <CheckCircle className="w-3 h-3 mr-1" />,
+    SENT: <CheckCircle className="w-3 h-3 mr-1" />,
     SUBMITTED: <Clock className="w-3 h-3 mr-1" />,
     FAILED: <XCircle className="w-3 h-3 mr-1" />,
     PENDING: <AlertTriangle className="w-3 h-3 mr-1" />,
     PASSED: <CheckCircle className="w-3 h-3 mr-1" />,
+    CLEAN: <CheckCircle className="w-3 h-3 mr-1" />,
     WARNING: <AlertTriangle className="w-3 h-3 mr-1" />,
     CRITICAL: <XCircle className="w-3 h-3 mr-1" />,
     UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />
@@ -127,7 +131,6 @@ export default function AdminDashboard() {
         }
       } else {
         setSelectedReport(null);
-        setDispatchedChannels(null);
       }
     } catch (err) {
       console.error('Failed to load pending reports', err);
@@ -352,36 +355,18 @@ export default function AdminDashboard() {
       actionKey: 'subject'
     },
     {
+      key: 'kominfo_aduan_konten',
+      icon: '🇮🇩',
+      label: 'Kominfo Aduan Konten',
+      targetLabel: 'Target',
+      targetKey: 'target',
+      actionLabel: 'Action',
+      actionKey: 'subject'
+    },
+    {
       key: 'google_safe_browsing',
       icon: '🔴',
       label: 'Google Safe Browsing',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'microsoft_smartscreen',
-      icon: '🪟',
-      label: 'MS SmartScreen',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'mcafee_webadvisor',
-      icon: '🔒',
-      label: 'McAfee WebAdvisor',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'nordvpn_cybersec',
-      icon: '🌐',
-      label: 'NordVPN CyberSec',
       targetLabel: 'Endpoint',
       targetKey: 'endpoint',
       actionLabel: 'Action',
