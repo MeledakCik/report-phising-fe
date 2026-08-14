@@ -352,36 +352,18 @@ export default function AdminDashboard() {
       actionKey: 'subject'
     },
     {
+      key: 'kominfo_aduan_konten',
+      icon: '🇮🇩',
+      label: 'Kominfo Aduan Konten',
+      targetLabel: 'Target',
+      targetKey: 'target',
+      actionLabel: 'Action',
+      actionKey: 'subject'
+    },
+    {
       key: 'google_safe_browsing',
       icon: '🔴',
       label: 'Google Safe Browsing',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'microsoft_smartscreen',
-      icon: '🪟',
-      label: 'MS SmartScreen',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'mcafee_webadvisor',
-      icon: '🔒',
-      label: 'McAfee WebAdvisor',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'nordvpn_cybersec',
-      icon: '🌐',
-      label: 'NordVPN CyberSec',
       targetLabel: 'Endpoint',
       targetKey: 'endpoint',
       actionLabel: 'Action',

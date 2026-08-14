@@ -1,37 +1,70 @@
-import React, { useState } from 'react';
-import { Shield, Globe, Check, Loader2, ChevronRight, AlertTriangle, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Shield, Globe, Loader2, ChevronRight, AlertTriangle, ShieldCheck } from 'lucide-react';
 import StatusModal from './StatusModal';
-import { API_BASE } from '../config';
+import { API_BASE, TURNSTILE_SITE_KEY } from '../config';
 
 export default function PublicForm() {
   const [url, setUrl] = useState('');
   const [brand, setBrand] = useState('');
-  const [captchaChecked, setCaptchaChecked] = useState(false);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaError, setCaptchaError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState(null);
-  
+
   // Deduplication Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
 
-  const handleCaptchaClick = () => {
-    if (captchaChecked) {
-      setCaptchaChecked(false);
+  // Real Cloudflare Turnstile widget
+  const turnstileContainerRef = useRef(null);
+  const widgetIdRef = useRef(null);
+
+  const renderTurnstile = useCallback(() => {
+    if (!window.turnstile || !turnstileContainerRef.current || widgetIdRef.current) return;
+    if (!TURNSTILE_SITE_KEY) return;
+
+    widgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: 'dark',
+      callback: (token) => {
+        setCaptchaToken(token);
+        setCaptchaError(false);
+      },
+      'expired-callback': () => setCaptchaToken(''),
+      'error-callback': () => {
+        setCaptchaToken('');
+        setCaptchaError(true);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    // The Turnstile script tag in index.html loads async; poll briefly until it's ready.
+    if (window.turnstile) {
+      renderTurnstile();
       return;
     }
-    setCaptchaLoading(true);
-    setTimeout(() => {
-      setCaptchaLoading(false);
-      setCaptchaChecked(true);
-    }, 850);
+    const interval = setInterval(() => {
+      if (window.turnstile) {
+        clearInterval(interval);
+        renderTurnstile();
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, [renderTurnstile]);
+
+  const resetCaptcha = () => {
+    setCaptchaToken('');
+    if (window.turnstile && widgetIdRef.current) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!url || !brand) return;
-    if (!captchaChecked) {
-      setNotification({ type: 'error', message: 'Please check the verification box to continue.' });
+    if (!captchaToken) {
+      setNotification({ type: 'error', message: 'Please complete the verification box to continue.' });
       return;
     }
 
@@ -42,7 +75,7 @@ export default function PublicForm() {
       const response = await fetch(`${API_BASE}/api/reports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reported_url: url, target_brand_raw: brand })
+        body: JSON.stringify({ reported_url: url, target_brand_raw: brand, captcha_token: captchaToken })
       });
 
       const result = await response.json();
@@ -53,18 +86,20 @@ export default function PublicForm() {
           setIsModalOpen(true);
           setUrl('');
           setBrand('');
-          setCaptchaChecked(false);
+          resetCaptcha();
         } else {
           setNotification({ type: 'success', message: 'Threat report successfully submitted for forensic evaluation.' });
           setUrl('');
           setBrand('');
-          setCaptchaChecked(false);
+          resetCaptcha();
         }
       } else {
         setNotification({ type: 'error', message: result.message || 'Threat submission failed.' });
+        resetCaptcha();
       }
     } catch (err) {
       setNotification({ type: 'error', message: 'Connection to server failed. Please try again.' });
+      resetCaptcha();
     } finally {
       setIsSubmitting(false);
     }
@@ -108,39 +143,29 @@ export default function PublicForm() {
             </div>
           </div>
 
-          {/* CAPTCHA Turnstile Verification */}
+          {/* CAPTCHA Turnstile Verification (real Cloudflare Turnstile widget) */}
           <div className="form-group">
             <label className="form-label">Security Verification</label>
-            <div className="turnstile-widget">
-              <div className="turnstile-left">
-                <button
-                  type="button"
-                  onClick={handleCaptchaClick}
-                  disabled={captchaLoading || isSubmitting}
-                  className={`turnstile-checkbox-btn ${captchaChecked ? 'checked' : ''}`}
-                >
-                  {captchaLoading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                  ) : captchaChecked ? (
-                    <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                  ) : null}
-                </button>
-                <span className="turnstile-label">Verify you are human</span>
+            {TURNSTILE_SITE_KEY ? (
+              <div ref={turnstileContainerRef} className="turnstile-widget-container" />
+            ) : (
+              <div className="form-notification error">
+                <AlertTriangle className="notification-icon w-4 h-4" />
+                <span>Verification widget is not configured (missing site key).</span>
               </div>
-              
-              <div className="turnstile-logo-container">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 18C10.9 18 10 17.1 10 16C10 14.9 10.9 14 12 14C13.1 14 14 14.9 14 16C14 17.1 13.1 18 12 18ZM15.2 11.2L12.7 13.7C12.4 14 12.2 14.5 12.2 15H11.8V13.5C11.8 13 12 12.5 12.3 12.2L13.8 10.7C14.1 10.4 14.2 10 14.2 9.6C14.2 8.7 13.5 8 12.6 8C11.7 8 11 8.7 11 9.6H9C9 7.6 10.6 6 12.6 6C14.6 6 16.2 7.6 16.2 9.6C16.1 10.2 15.8 10.8 15.2 11.2Z" fill="#e5e7eb" opacity="0.3"/>
-                </svg>
-                <span className="turnstile-logo-text">Turnstile</span>
+            )}
+            {captchaError && (
+              <div className="form-notification error">
+                <AlertTriangle className="notification-icon w-4 h-4" />
+                <span>Verification failed to load. Please refresh and try again.</span>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || !captchaChecked}
+            disabled={isSubmitting || !captchaToken}
             className="gradient-submit-btn"
           >
             {isSubmitting ? (
