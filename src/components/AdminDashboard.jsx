@@ -112,6 +112,7 @@ export default function AdminDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   const [dispatchedChannels, setDispatchedChannels] = useState(null);
+  const [dispatchedReportUrl, setDispatchedReportUrl] = useState(null);
   const [copiedLink, setCopiedLink] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
@@ -166,6 +167,8 @@ export default function AdminDashboard() {
     setActionLoading(true);
     setNotification(null);
     setDispatchedChannels(null);
+    setDispatchedReportUrl(null);
+    const approvedUrl = reports.find(r => r.id === id)?.reported_url || null;
     try {
       const res = await fetch(`${API_BASE}/api/reports/${id}/approve`, { method: 'POST' });
       const data = await res.json();
@@ -173,6 +176,7 @@ export default function AdminDashboard() {
         setNotification({ type: 'success', message: data.message });
         if (data.dispatched_channels) {
           setDispatchedChannels(data.dispatched_channels);
+          setDispatchedReportUrl(approvedUrl);
         }
         fetchPending();
       } else {
@@ -190,6 +194,7 @@ export default function AdminDashboard() {
     setActionLoading(true);
     setNotification(null);
     setDispatchedChannels(null);
+    setDispatchedReportUrl(null);
     try {
       const res = await fetch(`${API_BASE}/api/reports/${id}/reject`, { method: 'POST' });
       const data = await res.json();
@@ -211,6 +216,17 @@ export default function AdminDashboard() {
     navigator.clipboard.writeText(text);
     setCopiedLink(idx);
     setTimeout(() => setCopiedLink(null), 1500);
+  };
+
+  // Copy the reported URL and open Google's manual phishing report form in a
+  // new tab, ready to paste — Google has no API/prefill param for this form.
+  const handleCopyAndOpenGSB = (url, manualUrl) => {
+    if (url) {
+      navigator.clipboard.writeText(url);
+      setCopiedLink('gsb-manual');
+      setTimeout(() => setCopiedLink(null), 1500);
+    }
+    window.open(manualUrl, '_blank', 'noopener,noreferrer');
   };
 
   // Group outgoing links
@@ -411,6 +427,7 @@ export default function AdminDashboard() {
                   onClick={() => {
                     setSelectedReport(report);
                     setDispatchedChannels(null);
+                    setDispatchedReportUrl(null);
                   }}
                   className={`queue-item ${selectedReport?.id === report.id ? 'active' : ''}`}
                 >
@@ -773,15 +790,18 @@ export default function AdminDashboard() {
                           </div>
                         )}
                         {channel.manual_submission_url && (
-                          <a
-                            href={channel.manual_submission_url}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAndOpenGSB(dispatchedReportUrl, channel.manual_submission_url)}
                             className="dispatch-channel-link"
                           >
-                            <ExternalLink className="w-3 h-3" />
-                            Manual submission form
-                          </a>
+                            {copiedLink === 'gsb-manual' ? (
+                              <Check className="w-3 h-3" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                            {copiedLink === 'gsb-manual' ? 'URL copied — pasting into opened tab' : 'Copy URL & report to Google'}
+                          </button>
                         )}
                       </div>
                     </div>
