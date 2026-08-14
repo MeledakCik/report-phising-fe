@@ -224,51 +224,78 @@ export default function AdminDashboard() {
 
   const groupedLinks = selectedReport ? getGroupedLinks(selectedReport.outgoing_links) : null;
 
-  // Generate analysis data from report
+  // Derive analysis data straight from the report's real fields.
+  // These are populated by the backend's forensic worker (SSL socket check,
+  // real TCP port scan, URLhaus blacklist lookup, RDAP domain age, CDN
+  // header detection) - nothing here is hardcoded or simulated.
   const getAnalysisData = (report) => {
     if (!report) return null;
 
-    // Simulasi analisis - ini akan diisi dari backend nantinya
+    const isScanned = !!report.last_checked_at;
+
+    const openPorts = (() => {
+      try {
+        const parsed = JSON.parse(report.open_ports || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    const openList = openPorts.filter(p => p.open);
+    const closedList = openPorts.filter(p => !p.open);
+
     const analysis = {
       crawl_status: {
-        status: report.screenshot_url ? 'PASSED' : 'PENDING',
-        value: report.screenshot_url ? 'Successfully crawled' : 'Pending scan',
-        detail: report.screenshot_url ? `Last scan: ${new Date().toLocaleString()}` : 'Waiting for janitor...'
+        status: report.screenshot_url ? 'PASSED' : isScanned ? 'WARNING' : 'PENDING',
+        value: report.screenshot_url ? 'Successfully crawled' : isScanned ? 'Crawl failed or blocked' : 'Pending scan',
+        detail: report.last_checked_at ? `Last scan: ${new Date(report.last_checked_at).toLocaleString()}` : 'Waiting for janitor...',
+        loading: !isScanned
       },
       ssl_certificate: {
-        status: 'PASSED',
-        value: 'Valid SSL Certificate',
-        detail: 'Issued by: Let\'s Encrypt R3, Expires: 2026-11-15'
+        status: report.ssl_status || (isScanned ? 'UNKNOWN' : 'PENDING'),
+        value: report.ssl_status === 'CRITICAL' || report.ssl_status === 'UNKNOWN'
+          ? 'No valid certificate'
+          : report.ssl_issuer ? `Valid — Issued by ${report.ssl_issuer}` : '—',
+        detail: report.ssl_expiry
+          ? `Expires: ${new Date(report.ssl_expiry).toLocaleDateString()} (${report.ssl_days_left}d left)`
+          : 'Checked via live TLS handshake',
+        loading: !isScanned
       },
       dns_records: {
-        status: 'PASSED',
-        value: 'A: 188.114.97.0, 188.114.96.0',
-        detail: 'Cloudflare DNS (CDN)'
+        status: report.ip_address && report.ip_address !== 'Unknown' ? 'PASSED' : isScanned ? 'WARNING' : 'PENDING',
+        value: report.ip_address && report.ip_address !== 'Unknown' ? `A: ${report.ip_address}` : 'Could not resolve',
+        detail: report.cdn_provider ? `Behind ${report.cdn_provider}` : 'Direct resolution',
+        loading: !isScanned
       },
       open_ports: {
-        status: 'WARNING',
-        value: 'Port 80 (HTTP), 443 (HTTPS) open',
-        detail: 'Port 22 (SSH) filtered'
+        status: openList.some(p => ['FTP', 'RDP', 'MySQL'].includes(p.label)) ? 'WARNING' : isScanned ? 'PASSED' : 'PENDING',
+        value: openPorts.length ? `${openList.length}/${openPorts.length} ports open` : '—',
+        detail: openList.length ? `Open: ${openList.map(p => p.label).join(', ')}` : closedList.length ? 'All scanned ports closed' : 'Real-time TCP scan',
+        loading: !isScanned
       },
       blacklist_status: {
-        status: 'PASSED',
-        value: 'Not blacklisted',
-        detail: 'Clean on major RBLs'
+        status: report.blacklist_status || (isScanned ? 'UNKNOWN' : 'PENDING'),
+        value: report.blacklist_status === 'CRITICAL' ? 'Listed on URLhaus' : report.blacklist_status === 'PASSED' ? 'Not blacklisted' : '—',
+        detail: report.blacklist_detail || 'Checked against abuse.ch URLhaus',
+        loading: !isScanned
       },
       domain_age: {
-        status: 'WARNING',
-        value: 'Registered 45 days ago',
-        detail: 'Created: 2026-06-30'
+        status: report.domain_age_days != null ? (report.domain_age_days < 90 ? 'WARNING' : 'PASSED') : isScanned ? 'UNKNOWN' : 'PENDING',
+        value: report.domain_age_days != null ? `Registered ${report.domain_age_days} days ago` : 'Unknown (RDAP unavailable)',
+        detail: report.domain_registered_at ? `Created: ${new Date(report.domain_registered_at).toLocaleDateString()}` : '—',
+        loading: !isScanned
       },
       registrar_info: {
-        status: 'PASSED',
-        value: 'GoDaddy.com, LLC',
-        detail: 'Abuse: abuse@godaddy.com'
+        status: report.registrar_name ? 'PASSED' : isScanned ? 'UNKNOWN' : 'PENDING',
+        value: report.registrar_name || report.hosting_provider || '—',
+        detail: report.abuse_email ? `Abuse: ${report.abuse_email}` : '—',
+        loading: !isScanned
       },
       cdn_detection: {
-        status: 'WARNING',
-        value: 'Cloudflare detected',
-        detail: 'CDN provider: Cloudflare, Inc.'
+        status: report.cdn_provider ? 'WARNING' : isScanned ? 'PASSED' : 'PENDING',
+        value: report.cdn_provider || 'No CDN detected',
+        detail: report.cdn_provider ? 'Detected via live HTTP response headers' : 'Origin server exposed directly',
+        loading: !isScanned
       }
     };
 
@@ -276,6 +303,42 @@ export default function AdminDashboard() {
   };
 
   const analysisData = selectedReport ? getAnalysisData(selectedReport) : null;
+
+  // Compute overall posture summary from the real per-check statuses
+  const analysisSummary = (() => {
+    if (!analysisData) return null;
+    const entries = Object.entries(analysisData);
+    const statuses = entries.map(([, v]) => v.status);
+    const passed = statuses.filter(s => s === 'PASSED').length;
+    const warnings = statuses.filter(s => s === 'WARNING').length;
+    const critical = statuses.filter(s => s === 'CRITICAL').length;
+    const pending = statuses.filter(s => s === 'PENDING').length;
+
+    let overall = 'PASSED';
+    if (pending === entries.length) overall = 'PENDING';
+    else if (critical > 0) overall = 'CRITICAL';
+    else if (warnings > 0) overall = 'WARNING';
+
+    const badgeLabelMap = {
+      crawl_status: 'Crawl',
+      ssl_certificate: 'SSL',
+      dns_records: 'DNS',
+      open_ports: 'Ports',
+      blacklist_status: 'Blacklist',
+      domain_age: 'Domain Age',
+      registrar_info: 'Registrar',
+      cdn_detection: analysisData.cdn_detection.value !== 'No CDN detected' ? analysisData.cdn_detection.value : 'CDN'
+    };
+    const flaggedBadges = entries
+      .filter(([, v]) => v.status === 'WARNING' || v.status === 'CRITICAL')
+      .map(([k, v]) => ({ label: badgeLabelMap[k] || k, status: v.status }));
+    const okBadges = entries
+      .filter(([, v]) => v.status === 'PASSED')
+      .slice(0, 4)
+      .map(([k]) => ({ label: badgeLabelMap[k] || k, status: 'PASSED' }));
+
+    return { overall, passed, warnings, critical, pending, total: entries.length, badges: [...flaggedBadges, ...okBadges].slice(0, 6) };
+  })();
 
   // Channel cards configuration
   const channelConfigs = [
@@ -533,8 +596,8 @@ export default function AdminDashboard() {
                 </h3>
               </div>
 
-              {/* Detector Cards - compact & rapi */}
-              <div className="flex flex-col gap-2.5">
+              {/* Detector Cards - grid layout */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <DetectorCard
                   icon={Activity}
                   label="Crawl Status"
@@ -577,33 +640,41 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              {/* Summary Badge - lebih kaya visual */}
+              {/* Summary Badge - computed live from real check results */}
               <div className="mt-1 p-4 rounded-xl bg-gradient-to-br from-black/40 via-black/30 to-black/20 border border-white/10 backdrop-blur-sm shadow-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">
                     Overall Security Posture
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/20">
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                    analysisSummary.overall === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 border-rose-500/20' :
+                    analysisSummary.overall === 'WARNING' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20' :
+                    analysisSummary.overall === 'PENDING' ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/20' :
+                    'bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                  }`}>
                     <AlertTriangle className="w-3 h-3" />
-                    WARNING
+                    {analysisSummary.overall}
                   </span>
                 </div>
                 <div className="text-xs text-gray-300 mt-1.5 font-medium">
-                  6/8 checks passed, 2 warnings detected
+                  {analysisSummary.pending === analysisSummary.total
+                    ? 'Scan pending — waiting for forensic worker'
+                    : `${analysisSummary.passed}/${analysisSummary.total} checks passed, ${analysisSummary.warnings + analysisSummary.critical} flagged`}
                 </div>
                 <div className="flex flex-wrap gap-1.5 mt-3">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
-                    <CheckCircle className="w-3 h-3" /> SSL Valid
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
-                    <CheckCircle className="w-3 h-3" /> DNS OK
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-medium border border-yellow-500/20">
-                    <AlertTriangle className="w-3 h-3" /> Cloudflare
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-medium border border-yellow-500/20">
-                    <AlertTriangle className="w-3 h-3" /> Domain New
-                  </span>
+                  {analysisSummary.badges.map((b, i) => (
+                    <span
+                      key={i}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                        b.status === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 border-rose-500/20' :
+                        b.status === 'WARNING' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20' :
+                        'bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                      }`}
+                    >
+                      {b.status === 'PASSED' ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                      {b.label}
+                    </span>
+                  ))}
                 </div>
               </div>
             </>
