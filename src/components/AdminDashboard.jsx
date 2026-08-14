@@ -34,20 +34,24 @@ import { API_BASE } from '../config';
 const StatusBadge = ({ status }) => {
   const styles = {
     DISPATCHED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    SENT: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     SUBMITTED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     FAILED: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     PASSED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    CLEAN: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     WARNING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
   };
   const icons = {
     DISPATCHED: <CheckCircle className="w-3 h-3 mr-1" />,
+    SENT: <CheckCircle className="w-3 h-3 mr-1" />,
     SUBMITTED: <Clock className="w-3 h-3 mr-1" />,
     FAILED: <XCircle className="w-3 h-3 mr-1" />,
     PENDING: <AlertTriangle className="w-3 h-3 mr-1" />,
     PASSED: <CheckCircle className="w-3 h-3 mr-1" />,
+    CLEAN: <CheckCircle className="w-3 h-3 mr-1" />,
     WARNING: <AlertTriangle className="w-3 h-3 mr-1" />,
     CRITICAL: <XCircle className="w-3 h-3 mr-1" />,
     UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />
@@ -127,7 +131,6 @@ export default function AdminDashboard() {
         }
       } else {
         setSelectedReport(null);
-        setDispatchedChannels(null);
       }
     } catch (err) {
       console.error('Failed to load pending reports', err);
@@ -344,48 +347,21 @@ export default function AdminDashboard() {
   const channelConfigs = [
     {
       key: 'registrar_abuse',
-      icon: '📧',
+      icon: Mail,
       label: 'Registrar Abuse Email',
-      targetLabel: 'Target',
-      targetKey: 'target',
-      actionLabel: 'Action',
-      actionKey: 'subject'
+      accent: 'text-sky-400 bg-sky-500/10 border-sky-500/20'
+    },
+    {
+      key: 'kominfo_aduan_konten',
+      icon: Globe,
+      label: 'Kominfo Aduan Konten',
+      accent: 'text-red-400 bg-red-500/10 border-red-500/20'
     },
     {
       key: 'google_safe_browsing',
-      icon: '🔴',
+      icon: ShieldCheck,
       label: 'Google Safe Browsing',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'microsoft_smartscreen',
-      icon: '🪟',
-      label: 'MS SmartScreen',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'mcafee_webadvisor',
-      icon: '🔒',
-      label: 'McAfee WebAdvisor',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
-    },
-    {
-      key: 'nordvpn_cybersec',
-      icon: '🌐',
-      label: 'NordVPN CyberSec',
-      targetLabel: 'Endpoint',
-      targetKey: 'endpoint',
-      actionLabel: 'Action',
-      actionKey: 'action'
+      accent: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
     }
   ];
 
@@ -722,7 +698,7 @@ export default function AdminDashboard() {
 
       {/* Dispatch Logs */}
       {(notification || dispatchedChannels) && (
-        <div className="px-6 pb-4 bg-[#0a0c12] border-t border-white/5 flex flex-col gap-3 shrink-0">
+        <div className="dispatch-section">
           {notification && (
             <div
               className={`p-3 rounded-lg border text-xs font-semibold ${notification.type === 'success'
@@ -739,50 +715,75 @@ export default function AdminDashboard() {
           {dispatchedChannels && (
             <div className="dispatch-mail-overlay-log">
               <div className="dispatch-log-header">
-                <Terminal className="w-3.5 h-3.5 inline-block mr-1 text-emerald-400" />
-                <span>Multi-Vector Threat Intelligence Broadcast Log</span>
+                <div className="dispatch-log-header-left">
+                  <span className="dispatch-log-icon-badge">
+                    <Terminal className="w-3.5 h-3.5" />
+                  </span>
+                  <span>Multi-Vector Threat Intelligence Broadcast Log</span>
+                </div>
+                {dispatchedChannels.dispatched_at && (
+                  <span className="dispatch-log-timestamp">
+                    {new Date(dispatchedChannels.dispatched_at).toLocaleString()}
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {channelConfigs.map((cfg) => {
                   const channel = dispatchedChannels[cfg.key];
                   if (!channel) return null;
+                  const Icon = cfg.icon;
                   return (
-                    <div
-                      key={cfg.key}
-                      className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold">
-                          {cfg.icon} {cfg.label}
+                    <div key={cfg.key} className="dispatch-channel-card">
+                      <div className="dispatch-channel-card-header">
+                        <span className={`dispatch-channel-icon ${cfg.accent}`}>
+                          <Icon className="w-3.5 h-3.5" />
                         </span>
+                        <span className="dispatch-channel-label">{cfg.label}</span>
                         <StatusBadge status={channel.status} />
                       </div>
-                      {channel.target && (
-                        <div className="text-gray-400">
-                          {cfg.targetLabel}:{' '}
-                          <span className="text-gray-200 font-mono">
-                            {channel[cfg.targetKey] || channel.target}
-                          </span>
-                        </div>
-                      )}
-                      {channel.action && (
-                        <div className="text-gray-400 mt-0.5">
-                          {cfg.actionLabel}:{' '}
-                          <span className="text-gray-200">
-                            {channel[cfg.actionKey] || channel.action}
-                          </span>
-                        </div>
-                      )}
-                      {channel.error && (
-                        <div className="text-rose-400 mt-1 text-[10px]">
-                          Error: {channel.error}
-                        </div>
-                      )}
-                      {channel.timestamp && (
-                        <div className="text-gray-500 text-[9px] mt-1 font-mono">
-                          {new Date(channel.timestamp).toLocaleString()}
-                        </div>
-                      )}
+                      <div className="dispatch-channel-body">
+                        {channel.target && (
+                          <div className="dispatch-channel-row">
+                            <span className="dispatch-channel-row-label">Target</span>
+                            <span className="dispatch-channel-row-value font-mono">{channel.target}</span>
+                          </div>
+                        )}
+                        {channel.subject && (
+                          <div className="dispatch-channel-row">
+                            <span className="dispatch-channel-row-label">Subject</span>
+                            <span className="dispatch-channel-row-value">{channel.subject}</span>
+                          </div>
+                        )}
+                        {channel.note && (
+                          <div className="dispatch-channel-row">
+                            <span className="dispatch-channel-row-label">Note</span>
+                            <span className="dispatch-channel-row-value">{channel.note}</span>
+                          </div>
+                        )}
+                        {channel.threat_types && (
+                          <div className="dispatch-channel-row">
+                            <span className="dispatch-channel-row-label">Threats</span>
+                            <span className="dispatch-channel-row-value">{channel.threat_types}</span>
+                          </div>
+                        )}
+                        {channel.error && (
+                          <div className="dispatch-channel-row dispatch-channel-row-error">
+                            <span className="dispatch-channel-row-label">Error</span>
+                            <span className="dispatch-channel-row-value">{channel.error}</span>
+                          </div>
+                        )}
+                        {channel.manual_submission_url && (
+                          <a
+                            href={channel.manual_submission_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="dispatch-channel-link"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Manual submission form
+                          </a>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
