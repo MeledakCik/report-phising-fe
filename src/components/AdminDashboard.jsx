@@ -42,7 +42,8 @@ const StatusBadge = ({ status }) => {
     CLEAN: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     WARNING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-    UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    SKIPPED: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
   };
   const icons = {
     DISPATCHED: <CheckCircle className="w-3 h-3 mr-1" />,
@@ -54,7 +55,8 @@ const StatusBadge = ({ status }) => {
     CLEAN: <CheckCircle className="w-3 h-3 mr-1" />,
     WARNING: <AlertTriangle className="w-3 h-3 mr-1" />,
     CRITICAL: <XCircle className="w-3 h-3 mr-1" />,
-    UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />
+    UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />,
+    SKIPPED: <Clock className="w-3 h-3 mr-1" />
   };
   const label = status || 'PENDING';
   return (
@@ -378,6 +380,12 @@ export default function AdminDashboard() {
       icon: ShieldCheck,
       label: 'Google Safe Browsing',
       accent: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+    },
+    {
+      key: 'vercel_abuse',
+      icon: Cloud,
+      label: 'Vercel Abuse Desk',
+      accent: 'text-violet-400 bg-violet-500/10 border-violet-500/20'
     }
   ];
 
