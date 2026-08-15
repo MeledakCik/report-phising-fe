@@ -43,7 +43,9 @@ const StatusBadge = ({ status }) => {
     WARNING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     UNKNOWN: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-    SKIPPED: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    SKIPPED: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    SIMULATED_NOT_SENT: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    MANUAL_SUBMISSION_REQUIRED: 'bg-orange-500/20 text-orange-400 border-orange-500/30'
   };
   const icons = {
     DISPATCHED: <CheckCircle className="w-3 h-3 mr-1" />,
@@ -56,7 +58,9 @@ const StatusBadge = ({ status }) => {
     WARNING: <AlertTriangle className="w-3 h-3 mr-1" />,
     CRITICAL: <XCircle className="w-3 h-3 mr-1" />,
     UNKNOWN: <AlertTriangle className="w-3 h-3 mr-1" />,
-    SKIPPED: <Clock className="w-3 h-3 mr-1" />
+    SKIPPED: <Clock className="w-3 h-3 mr-1" />,
+    SIMULATED_NOT_SENT: <Clock className="w-3 h-3 mr-1" />,
+    MANUAL_SUBMISSION_REQUIRED: <AlertTriangle className="w-3 h-3 mr-1" />
   };
   const label = status || 'PENDING';
   return (
@@ -220,12 +224,13 @@ export default function AdminDashboard() {
     setTimeout(() => setCopiedLink(null), 1500);
   };
 
-  // Copy the reported URL and open Google's manual phishing report form in a
-  // new tab, ready to paste — Google has no API/prefill param for this form.
-  const handleCopyAndOpenGSB = (url, manualUrl) => {
+  // Copy the reported URL and open a manual abuse-report form in a new tab,
+  // ready to paste - used for channels with no submission API (Google Safe
+  // Browsing, Cloudflare) where the form has no prefill query params.
+  const handleCopyAndOpenManual = (url, manualUrl, key) => {
     if (url) {
       navigator.clipboard.writeText(url);
-      setCopiedLink('gsb-manual');
+      setCopiedLink(key);
       setTimeout(() => setCopiedLink(null), 1500);
     }
     window.open(manualUrl, '_blank', 'noopener,noreferrer');
@@ -386,6 +391,12 @@ export default function AdminDashboard() {
       icon: ShieldCheck,
       label: 'Google Safe Browsing',
       accent: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+    },
+    {
+      key: 'cloudflare_abuse',
+      icon: Cloud,
+      label: 'Cloudflare Abuse',
+      accent: 'text-orange-500 bg-orange-500/10 border-orange-500/20'
     },
     {
       key: 'vercel_abuse',
@@ -806,15 +817,15 @@ export default function AdminDashboard() {
                         {channel.manual_submission_url && (
                           <button
                             type="button"
-                            onClick={() => handleCopyAndOpenGSB(dispatchedReportUrl, channel.manual_submission_url)}
+                            onClick={() => handleCopyAndOpenManual(dispatchedReportUrl, channel.manual_submission_url, `${cfg.key}-manual`)}
                             className="dispatch-channel-link"
                           >
-                            {copiedLink === 'gsb-manual' ? (
+                            {copiedLink === `${cfg.key}-manual` ? (
                               <Check className="w-3 h-3" />
                             ) : (
                               <Copy className="w-3 h-3" />
                             )}
-                            {copiedLink === 'gsb-manual' ? 'URL copied — pasting into opened tab' : 'Copy URL & report to Google'}
+                            {copiedLink === `${cfg.key}-manual` ? 'URL copied — pasting into opened tab' : `Copy URL & report to ${cfg.label}`}
                           </button>
                         )}
                       </div>
