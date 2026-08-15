@@ -1,5 +1,73 @@
 import React from 'react';
-import { X, Clock, AlertTriangle, CheckCircle, ShieldAlert, Users } from 'lucide-react';
+import { X, Clock, AlertTriangle, CheckCircle, ShieldAlert, Users, Lock, Globe, AlertOctagon, Calendar, RefreshCw } from 'lucide-react';
+
+// Compact, public-safe version of the admin dashboard's forensic detector
+// cards. Only shows non-sensitive fields (no abuse email, no registrar
+// contact info) - just enough real data so the modal doesn't read like a
+// vague placeholder message.
+const statusDot = {
+  PASSED: 'bg-emerald-400',
+  CLEAN: 'bg-emerald-400',
+  WARNING: 'bg-yellow-400',
+  CRITICAL: 'bg-rose-400',
+  UNKNOWN: 'bg-gray-500',
+  PENDING: 'bg-indigo-400 animate-pulse'
+};
+
+const MiniStat = ({ icon: Icon, label, value, status, loading }) => (
+  <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
+    <div className="flex items-center gap-2 min-w-0">
+      <Icon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+      <span className="text-[11px] text-gray-400 truncate">{label}</span>
+    </div>
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      {loading ? (
+        <>
+          <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
+          <span className="text-[11px] text-gray-500">Scanning...</span>
+        </>
+      ) : (
+        <>
+          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[status] || statusDot.UNKNOWN}`} />
+          <span className="text-[11px] font-mono text-gray-200 max-w-[140px] truncate" title={value}>{value}</span>
+        </>
+      )}
+    </div>
+  </div>
+);
+
+function ForensicMiniGrid({ report }) {
+  if (!report) return null;
+  const isScanned = !!report.last_checked_at;
+
+  const ssl = {
+    status: report.ssl_status || (isScanned ? 'UNKNOWN' : 'PENDING'),
+    value: report.ssl_status === 'CRITICAL' || report.ssl_status === 'UNKNOWN'
+      ? 'No valid cert'
+      : report.ssl_issuer ? `Valid (${report.ssl_issuer})` : '—'
+  };
+  const domainAge = {
+    status: report.domain_age_days != null ? (report.domain_age_days < 90 ? 'WARNING' : 'PASSED') : (isScanned ? 'UNKNOWN' : 'PENDING'),
+    value: report.domain_age_days != null ? `${report.domain_age_days} days old` : 'Unknown'
+  };
+  const blacklist = {
+    status: report.blacklist_status || (isScanned ? 'UNKNOWN' : 'PENDING'),
+    value: report.blacklist_status === 'CRITICAL' ? 'Listed (URLhaus)' : report.blacklist_status === 'PASSED' ? 'Not blacklisted' : '—'
+  };
+  const gsb = {
+    status: report.gsb_status || (isScanned ? 'UNKNOWN' : 'PENDING'),
+    value: report.gsb_status === 'FLAGGED' ? 'Flagged by Google' : report.gsb_status === 'CLEAN' ? 'Clean' : '—'
+  };
+
+  return (
+    <div className="w-full grid grid-cols-2 gap-2 mb-5 text-left">
+      <MiniStat icon={Lock} label="SSL Certificate" {...ssl} loading={!isScanned} />
+      <MiniStat icon={Calendar} label="Domain Age" {...domainAge} loading={!isScanned} />
+      <MiniStat icon={AlertOctagon} label="Blacklist" {...blacklist} loading={!isScanned} />
+      <MiniStat icon={Globe} label="Google Safe Browsing" {...gsb} loading={!isScanned} />
+    </div>
+  );
+}
 
 export default function StatusModal({ isOpen, onClose, reportData }) {
   if (!isOpen || !reportData) return null;
@@ -74,6 +142,11 @@ export default function StatusModal({ isOpen, onClose, reportData }) {
         <p className="modal-message">
           {details.message}
         </p>
+
+        {/* Real forensic stats - so this isn't just a vague status paragraph */}
+        {(status === 'PENDING' || status === 'APPROVED') && (
+          <ForensicMiniGrid report={reportData} />
+        )}
 
         {/* Hit/Contributor count badge */}
         <div className="modal-badge">
