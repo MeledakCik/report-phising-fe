@@ -370,6 +370,12 @@ export default function AdminDashboard() {
       accent: 'text-sky-400 bg-sky-500/10 border-sky-500/20'
     },
     {
+      key: 'apwg',
+      icon: ShieldX,
+      label: 'APWG eCrime Exchange',
+      accent: 'text-orange-400 bg-orange-500/10 border-orange-500/20'
+    },
+    {
       key: 'kominfo_aduan_konten',
       icon: Globe,
       label: 'Kominfo Aduan Konten',
